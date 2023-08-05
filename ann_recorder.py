@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import axelrod as axl
 from typing import List
@@ -113,6 +114,7 @@ if __name__ == "__main__":
     match.play()
     print(match.sparklines())
     print(match.winner())
-    print(aggregate_features_wa_normed(players[1].activations, players[1].inputs))
+    wa = aggregate_features_wa_normed(players[1].activations, players[1].inputs)
     print(aggregate_features_max(players[1].activations, players[1].inputs))
     print(corr_map(players[1].activations, players[1].inputs))
+    pickle.dump(wa, open("wa.pkl", "wb+"))

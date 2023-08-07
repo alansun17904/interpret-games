@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import axelrod as axl
 from typing import List
+from utils import neuron_corr_map
 from axelrod.load_data_ import load_weights
 from axelrod.strategies.ann import ANN, compute_features
 from axelrod.action import Action
@@ -23,28 +24,21 @@ def activate(bias, hidden, output, features):
 
 
 def aggregate_features_wa(hidden_activations, input_features):
-    ha = np.array(hidden_activations) + np.ones_like(
-        hidden_activations
-    )  # (num_rounds x num_neurons)
-    fi = np.array(input_features) + np.ones_like(
-        input_features
-    )  # (num_rounds x num_features)
-    wa = np.dot(ha.T, fi)
-    return wa
-
-
-def aggregate_features_wa_normed(hidden_activations, input_features):
     """For each neuron, this function aggregates the input features
     by performing a weighted average based on the neuron's activations. This
     results in an `activation profile` of the neuron.
 
-    Returns a (num_neurons x len(input_features)) matrix. Force entries between
-    0-10 and then round to integers.
+    Returns a (num_neurons x len(input_features)) matrix. The ij-entry
+    represents the expected value of the jth feature given that the ith neuron
+    has fired.
     """
-    ha = np.array(hidden_activations) + np.ones_like(hidden_activations)
-    wa = aggregate_features_wa(hidden_activations, input_features)
-    normed = wa / ha.sum(axis=0).reshape(-1, 1)
-    return np.round(10 * normed / normed.max(axis=1, keepdims=True))
+    ha = np.array(hidden_activations) + np.ones_like(
+        hidden_activations
+    )  # (num_rounds x num_neurons)
+    ha = ha / ha.sum(axis=0, keepdims=True)
+    fi = np.array(input_features)  # (num_rounds x num_features)
+    wa = np.dot(fi.T, ha)
+    return wa
 
 
 def aggregate_features_max(hidden_activations, input_features):
@@ -62,15 +56,10 @@ def aggregate_features_max(hidden_activations, input_features):
     return np.array(max_inputs)
 
 
-def corr_map(hidden_activations, input_features, eps=1e-3):
+def corr_map(hidden_activations, eps=1e-3):
     """This function finds the covariance between the neuron activites of
     different neurons."""
-    fi = np.array(input_features)
-    weighted_inputs = []  # (num_neurons x num_rounds x num_features)
-    for i in range(len(hidden_activations[0])):
-        weighted_inputs.append(np.array(input_features) * fi[:, i].reshape(-1, 1))
-    wi = np.array(weighted_inputs) + eps
-    return np.round(np.corrcoef(wi.reshape(wi.shape[0], -1)), 2)
+    return np.round(np.corrcoef(hidden_activations.T), 2)
 
 
 class ANNRecorder(ANN):
@@ -109,12 +98,15 @@ class EvolvedANNRecorder(ANNRecorder):
 
 
 if __name__ == "__main__":
-    players = (axl.Alternator(), EvolvedANNRecorder("Evolved ANN 5"))
-    match = axl.Match(players, turns=100)
-    match.play()
-    print(match.sparklines())
-    print(match.winner())
-    wa = aggregate_features_wa_normed(players[1].activations, players[1].inputs)
-    print(aggregate_features_max(players[1].activations, players[1].inputs))
-    print(corr_map(players[1].activations, players[1].inputs))
-    pickle.dump(wa, open("wa.pkl", "wb+"))
+    bs = [s() for s in axl.basic_strategies]
+    for b in bs:
+        print("Playing against", b.name)
+        players = (b, EvolvedANNRecorder("Evolved ANN"))
+        match = axl.Match(players, turns=20)
+        match.play()
+        print(match.sparklines())
+        print(match.winner())
+    wa = aggregate_features_wa(players[1].activations, players[1].inputs)
+    corr = corr_map(wa)
+    neuron_corr_map(corr, fname="visuals/neuron-corrmap-10.pdf")
+    pickle.dump(wa, open("data/wa-10.pkl", "wb+"))

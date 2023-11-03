@@ -61,14 +61,13 @@ activations = pickle.load(open(activations_fname, "rb")).T
 print("Activations shape:", activations.shape)
 for activation in activations:
     prompt = prompt_header + "\n"
-    prompt += "Neuron 3\n<start>"
+    prompt += "Neuron 2\n<start>"
     for i, feature_name in enumerate(feature_names):
         if feature_types[i] == "B":
             fmt_activation = round(activation[i], 3)
         else:
             fmt_activation = int(activation[i])
         prompt += f"{feature_types[i]}\t{feature_name}\t{fmt_activation}\n"
-    prompt += "<end>\nExplanation of neuron 3's conclusion: "
+    prompt += "<end>\nConclusion: "
     prompts.append(prompt)
 json.dump(prompts, open(output_fname, "w+"))
-print(prompts[0])
